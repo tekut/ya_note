@@ -1,8 +1,10 @@
 from http import HTTPStatus
-from pytils.translit import slugify
+
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
+
+from pytils.translit import slugify
 
 from notes.forms import WARNING
 from notes.models import Note
@@ -46,8 +48,8 @@ class TestNoteCreation(TestCase):
 
 
 class TestNoteEditDelete(TestCase):
-    NOTE_TEXT = 'note text'
-    NEW_NOTE_TEXT = 'new note text'
+    NOTE_TEXT = 'Note text'
+    NEW_NOTE_TEXT = 'New note text'
 
     @classmethod
     def setUpTestData(cls):
@@ -65,7 +67,9 @@ class TestNoteEditDelete(TestCase):
         )
         cls.edit_url = reverse('notes:edit', args=(cls.note.slug,))
         cls.delete_url = reverse('notes:delete', args=(cls.note.slug,))
-        cls.form_data = {'text': cls.NEW_NOTE_TEXT}
+        cls.new_data = {'text': cls.NEW_NOTE_TEXT,
+                        'title': 'New Title',
+                        }
 
     def test_author_can_delete_note(self):
         '''Пользователь может удалять свои заметки'''
@@ -83,14 +87,16 @@ class TestNoteEditDelete(TestCase):
 
     def test_author_can_edit_note(self):
         '''Пользователь может редактировать свои заметки'''
-        response = self.author_client.post(self.edit_url, data=self.form_data)
-        self.assertRedirects(response, self.done_url)
+        self.assertRedirects(
+            self.author_client.post(self.edit_url, data=self.new_data),
+            self.done_url,
+            )
         self.note.refresh_from_db()
         self.assertEqual(self.note.text, self.NEW_NOTE_TEXT)
 
     def test_user_cant_edit_note_of_another_user(self):
         '''Пользователь не может редактировать чужие заметки'''
-        response = self.reader_client.post(self.edit_url, data=self.form_data)
+        response = self.reader_client.post(self.edit_url, data=self.new_data)
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         self.note.refresh_from_db()
         self.assertEqual(self.note.text, self.NOTE_TEXT)
@@ -131,6 +137,7 @@ class TestNoteAutoSlug(TestCase):
         cls.author_client.force_login(cls.author)
 
     def test_auto_generate_slug(self):
+        '''Если не заполнен slug, то он формируется автоматически'''
         title = 'Пример заметки без заполненного slug'
         expected_slug = slugify(title)
         response = self.author_client.post(
